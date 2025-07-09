@@ -40,7 +40,11 @@ function createRefreshToken() {
 }
 
 
-// Middleware & routes need to read SECRET at **call time**
+/**
+ * Sign a short-lived JWT access token.
+ * @param {string} email - User's email to include in the token payload.
+ * @returns {string} A JWT string, valid for 15 minutes.
+ */
 export function authenticateJWT(req, res, next) {
   const secret = process.env.JWT_SECRET;
   if (!secret) return res.sendStatus(500);
@@ -56,7 +60,15 @@ export function authenticateJWT(req, res, next) {
   });
 }
 
-// Register
+/**
+ * POST /register
+ * Register a new user by hashing their password and storing in-memory.
+ *
+ * @name Register
+ * @route {POST} /register
+ * @param {import('express').Request<{},{},{email: string; password: string}>} req
+ * @param {import('express').Response} res
+ */
 app.post('/register', async (req, res) => {
   const { email, password } = req.body;
   if (users.find(u => u.email === email)) {
@@ -67,7 +79,15 @@ app.post('/register', async (req, res) => {
   res.sendStatus(201);
 });
 
-// Login
+/**
+ * POST /login
+ * Verify user credentials and issue { accessToken, refreshToken }.
+ *
+ * @name Login
+ * @route {POST} /login
+ * @param {import('express').Request<{},{},{email: string; password: string}>} req
+ * @param {import('express').Response} res
+ */
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   const user = users.find(u => u.email === email);
@@ -84,6 +104,15 @@ app.post('/login', async (req, res) => {
   res.json({ accessToken, refreshToken });
 });
 
+/**
+ * POST /refresh
+ * Rotate a valid refresh token and issue a new access token.
+ *
+ * @name RefreshToken
+ * @route {POST} /refresh
+ * @param {import('express').Request<{},{},{refreshToken: string}>} req
+ * @param {import('express').Response} res
+ */
 app.post('/refresh', (req, res) => {
   const { refreshToken } = req.body;
   if (!refreshToken || !refreshTokens.has(refreshToken)) {
@@ -101,19 +130,45 @@ app.post('/refresh', (req, res) => {
   res.json({ accessToken, refreshToken: newRefreshToken });
 });
 
-// --- /logout (optional)
+/**
+ * POST /logout
+ * Revoke a refresh token so it can no longer be used.
+ *
+ * @name Logout
+ * @route {POST} /logout
+ * @param {import('express').Request<{},{},{refreshToken: string}>} req
+ * @param {import('express').Response} res
+ */
 app.post('/logout', (req, res) => {
   const { refreshToken } = req.body;
   if (refreshToken) refreshTokens.delete(refreshToken);
   res.sendStatus(204);
 });
 
-// Profile
+/**
+ * GET /profile
+ * Protected route returning the authenticated user's email.
+ *
+ * @name Profile
+ * @route {GET} /profile
+ * @middleware authenticateJWT
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 app.get('/profile', authenticateJWT, (req, res) => {
   res.json({ email: req.user.email });
 });
 
-// Query
+/**
+ * GET /query
+ * Protected route that returns the contents of the CSV as JSON.
+ *
+ * @name QueryData
+ * @route {GET} /query
+ * @middleware authenticateJWT
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 app.get('/query', authenticateJWT, (req, res) => {
   db.all('SELECT * FROM mydata', (err, rows) => {
     if (err) return res.sendStatus(500);
