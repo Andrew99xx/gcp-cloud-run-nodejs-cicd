@@ -296,6 +296,10 @@ curl -X POST https://<CLOUD_RUN_URL>/login \
 # Profile
 curl https://<CLOUD_RUN_URL>/profile \
   -H "Authorization: Bearer <JWT_TOKEN>"
+
+# Query
+curl https://<CLOUD_RUN_URL>/query \
+  -H "Authorization: Bearer <JWT_TOKEN>"
 ```
 ---
 
