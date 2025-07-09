@@ -1,0 +1,92 @@
+name: CI/CD → Cloud Run
+
+# Trigger on push to main or any release branch, PRs, or manual dispatch
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+  pull_request:
+    branches:
+      - main
+      - 'release/**'
+  workflow_dispatch:
+
+# Prevent overlapping runs on the same ref
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
+
+permissions:
+  contents: read        # to clone your code
+  id-token: write       # to mint OIDC tokens
+
+env:
+  PROJECT_ID: ${{secrets.PROJECT_ID}}
+  REGION: ${{secrets.REGION}}
+  REPOSITORY: ${{secrets.REPOSITORY}}
+  SERVICE: ${{secrets.SERVICE}}
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) Pull down your repo
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      # 2) Authenticate to GCP via OIDC & Workload Identity
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          # full resource name of your Workload Identity Provider
+          workload_identity_provider: projects/${{secrets.GCP_PROJECT_NUMBER}}/locations/global/workloadIdentityPools/${{secrets.WORKLOAD_ID_POOL}}/providers/${{secrets.WORKLOAD_ID_PROVIDER}}
+          service_account: user-service-run-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+          audience: projects/${{secrets.GCP_PROJECT_NUMBER}}/locations/global/workloadIdentityPools/${{secrets.WORKLOAD_ID_POOL}}/providers/${{secrets.WORKLOAD_ID_PROVIDER}}
+        
+      # 3) Install & configure gcloud CLI
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+        #   install_components: '[ "beta" ]'
+
+      # 4) Configure Docker to use gcloud credentials for Artifact Registry
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+
+      # 5) Build & push the Docker image
+      - name: Build & push Docker image
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      # 6) Deploy the new image to Cloud Run
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v1
+        with:
+            service: ${{ env.SERVICE }}
+            image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
+            region: ${{ env.REGION }}
+            allow-unauthenticated: true
+            env_vars: |
+                JWT_SECRET=projects/${{ env.PROJECT_ID }}/secrets/jwt-secret:latest
+            cpu: 500m
+            memory: 256Mi
+            min_instances: 1
+            max_instances: 3
+    
