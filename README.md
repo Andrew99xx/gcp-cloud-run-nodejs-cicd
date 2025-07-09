@@ -189,7 +189,7 @@ This lets GitHub Actions authenticate to GCP without long-lived keys.
      --issuer-uri="https://token.actions.githubusercontent.com" \
      --allowed-audiences="https://token.actions.githubusercontent.com","projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/my-pool/providers/github-provider" \
      --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner" \
-     --attribute-condition="assertion.repository_owner=='Andrew99xx'"
+     --attribute-condition="assertion.repository_owner=='<YOUR_GITHUB_USERNAME_CASE_SENSITIVE>'"
    ```
 
 3. **Bind GitHub’s OIDC Identities to Your Service Account**
@@ -202,12 +202,12 @@ This lets GitHub Actions authenticate to GCP without long-lived keys.
    # Allow GitHub repos under your owner to impersonate the SA
    gcloud iam service-accounts add-iam-policy-binding "$SA" \
      --role="roles/iam.workloadIdentityUser" \
-     --member="principalSet://${PROVIDER}/attribute.repository_owner/Andrew99xx"
+     --member="principalSet://${PROVIDER}/attribute.repository_owner/<YOUR_GITHUB_USERNAME_CASE_SENSITIVE>"
 
    # Allow those principals to mint tokens for the SA
    gcloud iam service-accounts add-iam-policy-binding "$SA" \
      --role="roles/iam.serviceAccountTokenCreator" \
-     --member="principalSet://${PROVIDER}/attribute.repository_owner/Andrew99xx"
+     --member="principalSet://${PROVIDER}/attribute.repository_owner/<YOUR_GITHUB_USERNAME_CASE_SENSITIVE>"
    ```
 
 4. **Store These IDs as GitHub Secrets**
@@ -297,6 +297,14 @@ curl -X POST https://<CLOUD_RUN_URL>/login \
 curl https://<CLOUD_RUN_URL>/profile \
   -H "Authorization: Bearer <JWT_TOKEN>"
 ```
+---
+
+## 🔗 Live Demo
+
+You can try out the deployed service here:
+
+**Production URL:**  
+https://user-service-1094759251296.us-central1.run.app/
 
 ---
 
